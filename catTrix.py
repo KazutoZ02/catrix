@@ -392,160 +392,239 @@ async def on_message(msg):
 # ======================
 # FULL MODERATION COG (EMBEDS ONLY)
 # ======================
-class Moderation(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+def e(msg, color=discord.Color.red()):
+    return discord.Embed(description=msg, color=color)
 
-    # ---------- HELPERS ----------
-    def embed(self, text, color=discord.Color.red()):
-        return discord.Embed(description=text, color=color)
 
-    def load_state(self):
-        return read_state()
+# ======================
+# /PING
+# ======================
+@app_commands.command(name="ping", description="Check bot latency")
+async def ping(interaction: discord.Interaction):
+    latency = round(interaction.client.latency * 1000)
+    await interaction.response.send_message(
+        embed=e(f"🏓 Pong!\nLatency: `{latency} ms`", discord.Color.green()),
+        ephemeral=True
+    )
 
-    def save_state(self, data):
-        write_state(data)
 
-    def add_warn(self, user_id, reason):
-        data = self.load_state()
-        warns = data["servers"]["GLOBAL"]["warnings"].setdefault(str(user_id), [])
-        warns.append({
-            "reason": reason,
-            "time": int(time.time())
-        })
-        self.save_state(data)
-        return len(warns)
+# ======================
+# /NICK
+# ======================
+@app_commands.command(name="nick", description="Change a user's nickname")
+@app_commands.checks.has_permissions(manage_nicknames=True)
+async def nick(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    nickname: str
+):
+    await member.edit(nick=nickname)
+    await interaction.response.send_message(
+        embed=e(
+            f"✏️ Nickname Updated\n"
+            f"User: {member.mention}\n"
+            f"New Nickname: `{nickname}`",
+            discord.Color.green()
+        )
+    )
 
-    def clear_warns(self, user_id):
-        data = self.load_state()
-        existed = str(user_id) in data["servers"]["GLOBAL"]["warnings"]
-        data["servers"]["GLOBAL"]["warnings"].pop(str(user_id), None)
-        self.save_state(data)
-        return existed
+# ======================
+# /BAN
+# ======================
+@app_commands.command(name="ban", description="Ban a member")
+@app_commands.checks.has_permissions(ban_members=True)
+async def ban(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    reason: str = "No reason provided"
+):
+    await member.ban(reason=reason)
+    await interaction.response.send_message(
+        embed=e(
+            f"🔨 Banned {member.mention}\nReason: {reason}"
+        )
+    )
 
-    # ---------- COMMANDS ----------
+# ======================
+# /KICK
+# ======================
+@app_commands.command(name="kick", description="Kick a member")
+@app_commands.checks.has_permissions(kick_members=True)
+async def kick(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    reason: str = "No reason provided"
+):
+    await member.kick(reason=reason)
+    await interaction.response.send_message(
+        embed=e(
+            f"👢 Kicked {member.mention}\nReason: {reason}"
+        )
+    )
 
-    @app_commands.command(name="timeout", description="Timeout a member")
-    @app_commands.checks.has_permissions(moderate_members=True)
-    async def timeout(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member,
-        minutes: int,
-        reason: str = "No reason provided"
-    ):
-        until = discord.utils.utcnow() + discord.timedelta(minutes=minutes)
-        await member.timeout(until, reason=reason)
+# ======================
+# /TIMEOUT 
+# ======================
+@app_commands.command(name="timeout", description="Timeout a member")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def timeout(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    minutes: int,
+    reason: str = "No reason provided"
+):
+    until = discord.utils.utcnow() + discord.timedelta(minutes=minutes)
+    await member.timeout(until, reason=reason)
 
-        await interaction.response.send_message(
-            embed=self.embed(
-                f"⏳ **Timed Out**\n"
-                f"User: {member.mention}\n"
-                f"Duration: {minutes} minutes\n"
-                f"Reason: {reason}"
+    await interaction.response.send_message(
+        embed=e(
+            f"⏳ Timed Out {member.mention}\n"
+            f"Duration: {minutes} minutes\n"
+            f"Reason: {reason}"
+        )
+    )
+
+# ======================
+# /REMOVE TIMEOUT
+# ======================
+@app_commands.command(name="remove_timeout", description="Remove a member timeout")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def remove_timeout(
+    interaction: discord.Interaction,
+    member: discord.Member
+):
+    await member.timeout(None)
+    await interaction.response.send_message(
+        embed=e(
+            f"✅ Timeout removed for {member.mention}",
+            discord.Color.green()
+        )
+    )
+
+# ======================
+# /WARN
+# ======================
+@app_commands.command(name="warn", description="Warn a member")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def warn(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    reason: str
+):
+    state = read_state()
+    warns = state["servers"]["GLOBAL"]["warnings"].setdefault(
+        str(member.id), []
+    )
+    warns.append({"reason": reason, "time": int(time.time())})
+    write_state(state)
+
+    await interaction.response.send_message(
+        embed=e(
+            f"⚠️ Warned {member.mention}\n"
+            f"Reason: {reason}\n"
+            f"Total warnings: {len(warns)}"
+        )
+    )
+
+# ======================
+#/REMOVE WARN
+# ======================
+@app_commands.command(name="remove_warn", description="Remove all warnings from a member")
+@app_commands.checks.has_permissions(administrator=True)
+async def remove_warn(
+    interaction: discord.Interaction,
+    member: discord.Member
+):
+    state = read_state()
+    existed = state["servers"]["GLOBAL"]["warnings"].pop(
+        str(member.id), None
+    )
+    write_state(state)
+
+    msg = (
+        f"🧹 Warnings cleared for {member.mention}"
+        if existed else
+        f"ℹ️ No warnings found for {member.mention}"
+    )
+
+    await interaction.response.send_message(
+        embed=e(msg, discord.Color.green())
+    )
+
+# ======================
+# / SEARCH
+# ======================
+@app_commands.command(name="search", description="Search using AI")
+async def search(
+    interaction: discord.Interaction,
+    query: str
+):
+    await interaction.response.defer()
+
+    reply = await ai.reply(query, interaction.user.name)
+    if not reply:
+        reply = "No result found."
+
+    await interaction.followup.send(
+        embed=e(
+            f"🔍 **Search Result**\n"
+            f"Query: `{query}`\n\n{reply}",
+            discord.Color.gold()
+        )
+    )
+
+# ======================
+# /PROFILE
+# ======================
+@app_commands.command(name="profile", description="View a user's profile")
+async def profile(
+    interaction: discord.Interaction,
+    member: discord.Member = None
+):
+    member = member or interaction.user
+    state = read_state()
+
+    xp = state["stats"]["messages"].get(str(member.id), 0)
+    lvl = state["stats"]["levels"].get(str(member.id), 0)
+
+    embed = discord.Embed(
+        title=f"{member.name}'s Profile",
+        color=discord.Color.blue()
+    )
+    embed.set_thumbnail(url=member.display_avatar.url)
+    embed.add_field(name="Level", value=lvl)
+    embed.add_field(name="XP", value=xp)
+    embed.add_field(
+        name="Warnings",
+        value=len(
+            state["servers"]["GLOBAL"]["warnings"].get(
+                str(member.id), []
             )
         )
+    )
 
-    @app_commands.command(name="remove_timeout", description="Remove a member timeout")
-    @app_commands.checks.has_permissions(moderate_members=True)
-    async def remove_timeout(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member
-    ):
-        await member.timeout(None)
+    await interaction.response.send_message(embed=embed)
 
-        await interaction.response.send_message(
-            embed=self.embed(
-                f"✅ **Timeout Removed**\nUser: {member.mention}",
-                discord.Color.green()
-            )
-        )
+# ======================
+# /SERVER PROFILE
+# ======================
+@app_commands.command(name="server_profile", description="View server information")
+async def server_profile(interaction: discord.Interaction):
+    g = interaction.guild
 
-    @app_commands.command(name="warn", description="Warn a member")
-    @app_commands.checks.has_permissions(moderate_members=True)
-    async def warn(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member,
-        reason: str
-    ):
-        count = self.add_warn(member.id, reason)
+    embed = discord.Embed(
+        title=g.name,
+        color=discord.Color.purple()
+    )
+    embed.set_thumbnail(url=g.icon.url if g.icon else None)
+    embed.add_field(name="Members", value=g.member_count)
+    embed.add_field(name="Owner", value=g.owner.mention)
+    embed.add_field(
+        name="Created",
+        value=g.created_at.strftime("%Y-%m-%d")
+    )
 
-        await interaction.response.send_message(
-            embed=self.embed(
-                f"⚠️ **User Warned**\n"
-                f"User: {member.mention}\n"
-                f"Reason: {reason}\n"
-                f"Total Warnings: {count}"
-            )
-        )
-
-    @app_commands.command(name="remove_warn", description="Remove all warnings from a member")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def remove_warn(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member
-    ):
-        existed = self.clear_warns(member.id)
-
-        msg = (
-            f"🧹 **Warnings Cleared** for {member.mention}"
-            if existed else
-            f"ℹ️ **No warnings found** for {member.mention}"
-        )
-
-        await interaction.response.send_message(
-            embed=self.embed(msg, discord.Color.green())
-        )
-
-    @app_commands.command(name="nick", description="Change a member nickname")
-    @app_commands.checks.has_permissions(manage_nicknames=True)
-    async def nick(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member,
-        nickname: str
-    ):
-        await member.edit(nick=nickname)
-
-        await interaction.response.send_message(
-            embed=self.embed(
-                f"✏️ **Nickname Updated**\n"
-                f"User: {member.mention}\n"
-                f"New Nickname: `{nickname}`",
-                discord.Color.green()
-            )
-        )
-
-    @app_commands.command(name="purge", description="Delete messages in bulk")
-    @app_commands.checks.has_permissions(manage_messages=True)
-    async def purge(
-        self,
-        interaction: discord.Interaction,
-        amount: int
-    ):
-        await interaction.channel.purge(limit=amount)
-
-        await interaction.response.send_message(
-            embed=self.embed(f"🧹 **Deleted {amount} messages**"),
-            ephemeral=True
-        )
-
-    @app_commands.command(name="ping", description="Check bot latency")
-    async def ping(self, interaction: discord.Interaction):
-        latency = round(self.bot.latency * 1000)
-
-        await interaction.response.send_message(
-            embed=self.embed(
-                f"🏓 **Pong!**\nLatency: `{latency} ms`",
-                discord.Color.green()
-            ),
-            ephemeral=True
-        )
-
-
+    await interaction.response.send_message(embed=embed)
 
 # -------------------------------------------------
 # YouTube API Helper
@@ -659,6 +738,11 @@ class YouTubeMonitor:
 
 monitor = YouTubeMonitor(bot, YouTubeService(os.getenv("YOUTUBE_API_KEY")))
 
+
+
+# ======================
+# SYNC
+# ======================
 @bot.event
 async def on_ready():
     log.info("🐱 CatTrix ONLINE")
@@ -680,7 +764,10 @@ async def ai_search(message):
     reply = await ai.reply(prompt, "Searcher")
     return reply
 
-
+@bot.event
+async def on_ready():
+    await bot.tree.sync()
+    print("Slash commands synced")
 
 # ======================
 # READY
