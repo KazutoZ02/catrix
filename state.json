@@ -1,8 +1,5 @@
 {
-  "bot": {
-    "online": false,
-    "last_start": null
-  },
+  "bot": { "online": false },
 
   "personality": "cattrix",
 
@@ -20,14 +17,14 @@
   "welcome": {
     "enabled": true,
     "channel_id": null,
-    "message": "Welcome {user} to **{server}** 🐱",
+    "message": "Welcome {user} to {server}",
     "image": "welcome.gif"
   },
 
   "leave": {
     "enabled": true,
     "channel_id": null,
-    "message": "{user} has left **{server}**.",
+    "message": "{user} left {server}",
     "image": "leave.gif"
   },
 
@@ -35,20 +32,15 @@
     "enabled": true,
     "channel_id": null,
     "xp_per_message": 10,
-    "message": "🎉 {user} reached **Level {level}**!",
+    "message": "{user} reached level {level}",
     "image": "levelup.gif"
   },
 
   "stats": {
     "messages": {},
-    "levels": {},
-    "ai_replies": 0,
-    "moderation_actions": 0
+    "levels": {}
   },
 
- "yt_channels": {
-  "CHANNEL_ID_1": {"live": true, "videos": true, "shorts": true},
-  "CHANNEL_ID_2": {"live": true, "videos": false, "shorts": false}
+  "yt_channels": {},
+  "streams": {}
 }
-
-  
