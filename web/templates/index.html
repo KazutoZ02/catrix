@@ -1,63 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>CatTrix Control</title>
+  <meta charset="UTF-8">
+  <title>CatTrix</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<div class="overlay"></div>
 
-<div class="panel">
-  <h1>CatTrix</h1>
-  <div class="subtitle">Reaction Control System</div>
+<div class="app">
 
-  <!-- AI -->
-  <section>
-    <h2>AI Personality</h2>
-    <select id="personality">
-      <option value="cattrix">CatTrix</option>
-      <option value="calm">Calm</option>
-      <option value="roast">Roast</option>
-    </select>
-    <button onclick="setPersonality()">Apply</button>
-  </section>
+  <header class="topbar">
+    <div class="logo">CatTrix</div>
+    <span class="status">● Online</span>
+  </header>
 
-  <!-- Welcome -->
-  <section>
-    <h2>Welcome</h2>
-    <input id="welcome_channel" placeholder="Channel ID">
-    <input id="welcome_msg" placeholder="Message ({user})">
-    <input id="welcome_img" placeholder="Image (gif/jpg)">
-    <button onclick="saveWelcome()">Save</button>
-  </section>
+  <div class="cards">
+    <div class="card" onclick="show('general')">⚙️ General</div>
+    <div class="card" onclick="show('welcome')">👋 Welcome</div>
+    <div class="card" onclick="show('levels')">🏆 Levels</div>
+    <div class="card" onclick="show('youtube')">📺 YouTube</div>
+    <div class="card" onclick="show('live')">🔴 Live Chat</div>
+  </div>
 
-  <!-- Leave -->
-  <section>
-    <h2>Leave</h2>
-    <input id="leave_channel" placeholder="Channel ID">
-    <input id="leave_msg" placeholder="Message ({user})">
-    <input id="leave_img" placeholder="Image (gif/jpg)">
-    <button onclick="saveLeave()">Save</button>
-  </section>
-
-  <!-- Level -->
-  <section>
-    <h2>Level System</h2>
-    <input id="level_channel" placeholder="Channel ID">
-    <input id="level_xp" placeholder="XP per message">
-    <input id="level_msg" placeholder="Message ({user} {level})">
-    <input id="level_img" placeholder="Image (gif/jpg)">
-    <button onclick="saveLevel()">Save</button>
-  </section>
-
-  <!-- YouTube -->
-  <section>
-    <h2>YouTube Monitor</h2>
-    <input id="yt_id" placeholder="Channel ID">
-    <label><input type="checkbox" id="yt_live"> Live</label>
-    <label><input type="checkbox" id="yt_video"> Videos</label>
-    <label><input type="checkbox" id="yt_shorts"> Shorts</label>
-    <button onclick="addYT()">Add Channel</button>
+  <section id="panel" class="panel">
+    <h2>CatTrix Dashboard</h2>
+    <p>Select a module</p>
   </section>
 
 </div>
