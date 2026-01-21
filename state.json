@@ -41,6 +41,16 @@
     "levels": {}
   },
 
-  "yt_channels": {},
-  "streams": {}
+  "yt_channels": {
+  "QKID9WYXct66Ji3f": {
+    "live": true
+  }
+},
+"servers": {
+  "GLOBAL": {
+    "moderation": {
+      "log_channel_id": "DISCORD_CHANNEL_ID"
+    }
+  }
+}
 }
