@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, render_template, request, jsonify
 import json, os
 
 STATE_FILE = "state.json"
@@ -24,18 +24,19 @@ def get_state():
     return jsonify(load_state())
 
 @app.route("/api/update", methods=["POST"])
-def update_state():
-    data = load_state()
+def update():
+    state = load_state()
     payload = request.json
-    data.update(payload)
-    save_state(data)
+
+    for k, v in payload.items():
+        state[k] = v
+
+    save_state(state)
     return {"ok": True}
 
-@app.route("/api/set_section", methods=["POST"])
-def set_section():
-    data = load_state()
-    section = request.json["section"]
-    value = request.json["value"]
-    data[section] = value
-    save_state(data)
-    return {"ok": True}
+if __name__ == "__main__":
+    app.run(
+        host=os.getenv("WEB_HOST", "0.0.0.0"),
+        port=int(os.getenv("WEB_PORT", 5000)),
+        debug=False
+    )
