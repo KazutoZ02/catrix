@@ -72,6 +72,8 @@ async def on_member_join(member):
 @bot.event
 async def on_member_remove(member):
     await handle_welcome_leave(member, join=False)
+
+
 # ======================
 # LEVEL UP EXP
 # ======================
