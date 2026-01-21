@@ -46,10 +46,9 @@
     "moderation_actions": 0
   },
 
-  "yt_channels": {
-    "EXAMPLE_CHANNEL_ID": {
-      "live": {
-        "enabled": false,
-        "message": "🔴 **Live now!** {title}\n{url}"
-      },
-      "videos": {
+ "yt_channels": {
+  "CHANNEL_ID_1": {"live": true, "videos": true, "shorts": true},
+  "CHANNEL_ID_2": {"live": true, "videos": false, "shorts": false}
+}
+
+  
