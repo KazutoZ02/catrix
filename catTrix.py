@@ -66,6 +66,45 @@ async def handle_welcome_leave(member: discord.Member, join=True):
     )
 
 # ======================
+# LEVEL UP EXP
+# ======================
+def get_level(xp):
+    return int(math.sqrt(xp / 50))
+
+@bot.event
+async def on_message(msg):
+    if msg.author.bot:
+        return
+
+    state = read_state()
+    uid = str(msg.author.id)
+    gid = str(msg.guild.id)
+
+    stats = state["stats"].setdefault("messages", {})
+    stats[uid] = stats.get(uid, 0) + state["level"]["xp_per_message"]
+
+    old_lvl = state["stats"]["levels"].get(uid, 0)
+    new_lvl = get_level(stats[uid])
+
+    if new_lvl > old_lvl and state["level"]["enabled"]:
+        state["stats"]["levels"][uid] = new_lvl
+        write_state(state)
+
+        cfg = state["level"]
+        ch = msg.guild.get_channel(cfg["channel_id"])
+        if ch:
+            img = cfg["image"]
+            file = discord.File(f"{ASSETS_DIR}/{img}", filename=img)
+            text = cfg["message"].format(user=msg.author.mention, level=new_lvl)
+
+            await ch.send(
+                embed=cattrix_embed(text, discord.Color.green(), img),
+                file=file
+            )
+
+    write_state(state)
+    await bot.process_commands(msg)
+# ======================
 # STATE
 # ======================
 def read_state():
