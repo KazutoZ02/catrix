@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import os, json, time, math, asyncio, logging, tempfile
 from dataclasses import dataclass
-from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 
 import discord
 from discord.ext import commands
