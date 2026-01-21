@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os, json, time, math, asyncio, logging, tempfile
 from dataclasses import dataclass
+from googleapiclient.discovery import build
 
 import discord
 from discord.ext import commands
@@ -211,6 +212,299 @@ async def on_message(msg):
         await msg.channel.send(embed=cattrix_embed(reply))
 
     await bot.process_commands(msg)
+
+# ======================
+# FULL MODERATION COG (EMBEDS ONLY)
+# ======================
+class Moderation(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    # ---------- HELPERS ----------
+    def embed(self, text, color=discord.Color.red()):
+        return discord.Embed(description=text, color=color)
+
+    def load_state(self):
+        return read_state()
+
+    def save_state(self, data):
+        write_state(data)
+
+    def add_warn(self, user_id, reason):
+        data = self.load_state()
+        warns = data["servers"]["GLOBAL"]["warnings"].setdefault(str(user_id), [])
+        warns.append({
+            "reason": reason,
+            "time": int(time.time())
+        })
+        self.save_state(data)
+        return len(warns)
+
+    def clear_warns(self, user_id):
+        data = self.load_state()
+        existed = str(user_id) in data["servers"]["GLOBAL"]["warnings"]
+        data["servers"]["GLOBAL"]["warnings"].pop(str(user_id), None)
+        self.save_state(data)
+        return existed
+
+    # ---------- COMMANDS ----------
+
+    @app_commands.command(name="timeout", description="Timeout a member")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def timeout(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        minutes: int,
+        reason: str = "No reason provided"
+    ):
+        until = discord.utils.utcnow() + discord.timedelta(minutes=minutes)
+        await member.timeout(until, reason=reason)
+
+        await interaction.response.send_message(
+            embed=self.embed(
+                f"⏳ **Timed Out**\n"
+                f"User: {member.mention}\n"
+                f"Duration: {minutes} minutes\n"
+                f"Reason: {reason}"
+            )
+        )
+
+    @app_commands.command(name="remove_timeout", description="Remove a member timeout")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def remove_timeout(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member
+    ):
+        await member.timeout(None)
+
+        await interaction.response.send_message(
+            embed=self.embed(
+                f"✅ **Timeout Removed**\nUser: {member.mention}",
+                discord.Color.green()
+            )
+        )
+
+    @app_commands.command(name="warn", description="Warn a member")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def warn(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        reason: str
+    ):
+        count = self.add_warn(member.id, reason)
+
+        await interaction.response.send_message(
+            embed=self.embed(
+                f"⚠️ **User Warned**\n"
+                f"User: {member.mention}\n"
+                f"Reason: {reason}\n"
+                f"Total Warnings: {count}"
+            )
+        )
+
+    @app_commands.command(name="remove_warn", description="Remove all warnings from a member")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def remove_warn(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member
+    ):
+        existed = self.clear_warns(member.id)
+
+        msg = (
+            f"🧹 **Warnings Cleared** for {member.mention}"
+            if existed else
+            f"ℹ️ **No warnings found** for {member.mention}"
+        )
+
+        await interaction.response.send_message(
+            embed=self.embed(msg, discord.Color.green())
+        )
+
+    @app_commands.command(name="nick", description="Change a member nickname")
+    @app_commands.checks.has_permissions(manage_nicknames=True)
+    async def nick(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        nickname: str
+    ):
+        await member.edit(nick=nickname)
+
+        await interaction.response.send_message(
+            embed=self.embed(
+                f"✏️ **Nickname Updated**\n"
+                f"User: {member.mention}\n"
+                f"New Nickname: `{nickname}`",
+                discord.Color.green()
+            )
+        )
+
+    @app_commands.command(name="purge", description="Delete messages in bulk")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def purge(
+        self,
+        interaction: discord.Interaction,
+        amount: int
+    ):
+        await interaction.channel.purge(limit=amount)
+
+        await interaction.response.send_message(
+            embed=self.embed(f"🧹 **Deleted {amount} messages**"),
+            ephemeral=True
+        )
+
+    @app_commands.command(name="ping", description="Check bot latency")
+    async def ping(self, interaction: discord.Interaction):
+        latency = round(self.bot.latency * 1000)
+
+        await interaction.response.send_message(
+            embed=self.embed(
+                f"🏓 **Pong!**\nLatency: `{latency} ms`",
+                discord.Color.green()
+            ),
+            ephemeral=True
+        )
+
+
+
+# -------------------------------------------------
+# YouTube API Helper
+# -------------------------------------------------
+class YouTubeService:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.youtube = build("youtube", "v3", developerKey=api_key)
+
+    def get_live_streams(self, channel_id):
+        """Return list of live stream videos for a channel."""
+        res = self.youtube.search().list(
+            part="snippet",
+            channelId=channel_id,
+            eventType="live",
+            type="video",
+            maxResults=5
+        ).execute()
+        return res.get("items", [])
+
+    def get_latest_upload(self, channel_id):
+        """Return latest uploaded video."""
+        res = self.youtube.search().list(
+            part="snippet",
+            channelId=channel_id,
+            type="video",
+            order="date",
+            maxResults=1
+        ).execute()
+        return res.get("items", [])
+
+    def get_latest_short(self, channel_id):
+        """Return latest short (based on duration heuristics)."""
+        videos = self.get_latest_upload(channel_id)
+        if not videos:
+            return None
+        return videos[0]  # Same result for simple pipeline
+
+class YouTubeMonitor:
+    def __init__(self, bot, yt_service):
+        self.bot = bot
+        self.yt = yt_service
+        self.active_streams = {}  # video_id -> task
+
+    async def check_channels(self):
+        state = read_state()
+        channels = state.get("yt_channels", {})
+        for cid, cfg in channels.items():
+            # Live
+            if cfg.get("live"):
+                lives = self.yt.get_live_streams(cid)
+                for video in lives:
+                    vid = video["id"]["videoId"]
+                    if vid not in self.active_streams:
+                        task = asyncio.create_task(self.monitor_stream(vid, cid))
+                        self.active_streams[vid] = task
+
+            # New Video Upload
+            if cfg.get("videos"):
+                video = self.yt.get_latest_upload(cid)
+                if video:
+                    await self.post_video_notification(cid, video[0])
+
+            # Shorts
+            if cfg.get("shorts"):
+                short = self.yt.get_latest_short(cid)
+                if short:
+                    await self.post_short_notification(cid, short)
+
+    async def monitor_stream(self, video_id, channel_id):
+        link = f"https://youtu.be/{video_id}"
+        state = read_state()
+        notify_channel_id = state.get("servers", {}).get("GLOBAL", {}).get("log_channel_id")
+        notify_channel = self.bot.get_channel(notify_channel_id)
+        title = self.yt.youtube.videos().list(
+            part="snippet", id=video_id
+        ).execute()["items"][0]["snippet"]["title"]
+
+        # Announce
+        if notify_channel:
+            await notify_channel.send(
+                embed=cattrix_embed(f"🔴 Live Now: **{title}**\n{link}", discord.Color.red())
+            )
+
+        # Loop basic polling for live chat messages (optional)
+        while True:
+            await asyncio.sleep(10)
+            # If stream ends, break
+            stats = self.yt.youtube.videos().list(
+                part="liveStreamingDetails", id=video_id
+            ).execute()["items"][0]["liveStreamingDetails"]
+            if "activeLiveChatId" not in stats:
+                break
+
+            live_chat_id = stats["activeLiveChatId"]
+            messages = self.yt.youtube.liveChatMessages().list(
+                liveChatId=live_chat_id,
+                part="snippet,authorDetails"
+            ).execute()
+
+            for item in messages.get("items", []):
+                text = item["snippet"]["displayMessage"]
+                author = item["authorDetails"]["displayName"]
+                # You can optionally add AI search/response here
+
+        # Stream ended
+        await notify_channel.send(
+            embed=cattrix_embed(f"🔴 Stream Ended: **{title}**\n{link}", discord.Color.dark_gray())
+        )
+        self.active_streams.pop(video_id, None)
+
+monitor = YouTubeMonitor(bot, YouTubeService(os.getenv("YOUTUBE_API_KEY")))
+
+@bot.event
+async def on_ready():
+    log.info("🐱 CatTrix ONLINE")
+
+    # Start periodic YouTube check
+    async def yt_loop():
+        while True:
+            try:
+                await monitor.check_channels()
+            except Exception as e:
+                log.error(f"YT monitor error: {e}")
+            await asyncio.sleep(cfg.poll)
+
+    bot.loop.create_task(yt_loop())
+
+async def ai_search(message):
+    # For example: search query + categorize
+    prompt = f"Message: {message}\nGive a concise summary:"
+    reply = await ai.reply(prompt, "Searcher")
+    return reply
+
+
 
 # ======================
 # READY
