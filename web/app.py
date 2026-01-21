@@ -6,8 +6,6 @@ STATE_FILE = "state.json"
 app = Flask(__name__)
 
 def load_state():
-    if not os.path.exists(STATE_FILE):
-        return {}
     with open(STATE_FILE, "r") as f:
         return json.load(f)
 
@@ -20,7 +18,7 @@ def index():
     return render_template("index.html")
 
 @app.route("/api/state")
-def get_state():
+def state():
     return jsonify(load_state())
 
 @app.route("/api/update", methods=["POST"])
@@ -28,8 +26,8 @@ def update():
     state = load_state()
     payload = request.json
 
-    for k, v in payload.items():
-        state[k] = v
+    for key, value in payload.items():
+        state[key] = value
 
     save_state(state)
     return {"ok": True}
