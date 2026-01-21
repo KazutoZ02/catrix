@@ -65,6 +65,13 @@ async def handle_welcome_leave(member: discord.Member, join=True):
         file=file
     )
 
+@bot.event
+async def on_member_join(member):
+    await handle_welcome_leave(member, join=True)
+
+@bot.event
+async def on_member_remove(member):
+    await handle_welcome_leave(member, join=False)
 # ======================
 # LEVEL UP EXP
 # ======================
