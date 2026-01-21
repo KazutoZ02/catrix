@@ -55,6 +55,12 @@ def cattrix_embed(text, color=discord.Color.red(), image=None):
         e.set_image(url=f"attachment://{image}")
     return e
 
+
+
+# ======================
+# OAUTH HELPER 
+# ======================
+
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 
 def get_youtube_oauth():
@@ -77,6 +83,150 @@ def get_youtube_oauth():
             f.write(creds.to_json())
 
     return build("youtube", "v3", credentials=creds)
+
+
+# ======================
+# LIVE CHAT ID
+# ======================
+def get_live_chat_id(youtube, video_id):
+    res = youtube.videos().list(
+        part="liveStreamingDetails",
+        id=video_id
+    ).execute()
+
+    items = res.get("items", [])
+    if not items:
+        return None
+
+    return items[0]["liveStreamingDetails"].get("activeLiveChatId")
+
+
+# ======================
+# LIVE CHAT MONITOR 
+# ======================
+async def monitor_live_chat(video_id, discord_channel):
+    youtube = get_youtube_oauth()
+    chat_id = get_live_chat_id(youtube, video_id)
+
+    if not chat_id:
+        return
+
+    next_page = None
+
+    while True:
+        res = youtube.liveChatMessages().list(
+            liveChatId=chat_id,
+            part="snippet,authorDetails",
+            pageToken=next_page
+        ).execute()
+
+        for item in res.get("items", []):
+            author = item["authorDetails"]["displayName"]
+            message = item["snippet"]["displayMessage"]
+
+            # AI reply
+            ai_reply = await ai.reply(message, author)
+
+            if ai_reply:
+                # Send reply to YouTube
+                youtube.liveChatMessages().insert(
+                    part="snippet",
+                    body={
+                        "snippet": {
+                            "liveChatId": chat_id,
+                            "type": "textMessageEvent",
+                            "textMessageDetails": {
+                                "messageText": ai_reply
+                            }
+                        }
+                    }
+                ).execute()
+
+                # Log to Discord
+                await discord_channel.send(
+                    embed=cattrix_embed(
+                        f"💬 **YT Live Chat**\n"
+                        f"👤 {author}: {message}\n"
+                        f"🤖 {ai_reply}",
+                        discord.Color.gold()
+                    )
+                )
+
+        next_page = res.get("nextPageToken")
+        await asyncio.sleep(5)
+
+
+
+# ======================
+# YOUTUBE LIVE KEY
+# ======================
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+yt_api = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+
+def get_live_streams(channel_id):
+    res = yt_api.search().list(
+        part="snippet",
+        channelId=channel_id,
+        eventType="live",
+        type="video",
+        maxResults=1
+    ).execute()
+    return res.get("items", [])
+
+
+# ======================
+# MONITOR LOOP
+# ======================
+active_streams = {}
+
+async def youtube_monitor():
+    await bot.wait_until_ready()
+
+    while not bot.is_closed():
+        state = read_state()
+        yt_channels = state.get("yt_channels", {})
+
+        log_channel_id = state["servers"]["GLOBAL"]["moderation"]["log_channel_id"]
+        discord_channel = bot.get_channel(log_channel_id)
+
+        if not discord_channel:
+            await asyncio.sleep(10)
+            continue
+
+        for channel_id, cfg in yt_channels.items():
+            if not cfg.get("live"):
+                continue
+
+            lives = get_live_streams(channel_id)
+            for live in lives:
+                video_id = live["id"]["videoId"]
+
+                if video_id in active_streams:
+                    continue  # already monitoring
+
+                title = live["snippet"]["title"]
+                url = f"https://youtu.be/{video_id}"
+
+                # Announce in Discord
+                await discord_channel.send(
+                    embed=cattrix_embed(
+                        f"🔴 **LIVE NOW**\n**{title}**\n{url}",
+                        discord.Color.red()
+                    )
+                )
+
+                # Start live chat monitor
+                task = asyncio.create_task(
+                    monitor_live_chat(video_id, discord_channel)
+                )
+                active_streams[video_id] = task
+
+        await asyncio.sleep(60)
+
+
+bot.loop.create_task(youtube_monitor())
+
+
 
 
 # ======================
