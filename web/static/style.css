@@ -1,7 +1,7 @@
 :root {
   --red: #ff2e2e;
   --gold: #f5c542;
-  --dark: rgba(10,10,10,0.88);
+  --glass: rgba(12,12,12,0.82);
   --border: rgba(255,255,255,0.08);
 }
 
@@ -13,7 +13,7 @@
 body {
   margin: 0;
   height: 100vh;
-  background: url("/static/bg.jpg") center / cover no-repeat fixed;
+  background: url("/static/bg.jpg") center/cover no-repeat fixed;
   color: #eee;
 }
 
@@ -21,51 +21,51 @@ body {
   position: fixed;
   inset: 0;
   background: linear-gradient(
-    rgba(0,0,0,0.75),
-    rgba(0,0,0,0.9)
+    rgba(0,0,0,0.78),
+    rgba(0,0,0,0.92)
   );
   backdrop-filter: blur(6px);
 }
 
 .panel {
   position: relative;
-  width: 460px;
+  width: 480px;
   height: 100vh;
-  background: var(--dark);
-  padding: 28px;
-  overflow-y: auto;
+  padding: 30px;
+  background: var(--glass);
   border-right: 1px solid var(--border);
-  box-shadow: 0 0 40px rgba(255,0,0,0.2);
+  overflow-y: auto;
+  box-shadow: 0 0 45px rgba(255,0,0,0.25);
 }
 
 h1 {
   margin: 0;
-  font-size: 2.2em;
+  font-size: 2.4em;
   color: var(--red);
 }
 
 .subtitle {
-  opacity: 0.7;
+  opacity: 0.65;
   margin-bottom: 30px;
 }
 
 section {
-  margin-bottom: 28px;
+  margin-bottom: 30px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--border);
 }
 
 section h2 {
   color: var(--gold);
-  font-size: 1.05em;
+  font-size: 1.1em;
   margin-bottom: 10px;
 }
 
 input, select, button {
   width: 100%;
   margin-top: 8px;
-  padding: 10px;
-  background: #111;
+  padding: 11px;
+  background: #0f0f0f;
   border: 1px solid var(--border);
   color: #eee;
 }
@@ -73,8 +73,8 @@ input, select, button {
 button {
   background: var(--red);
   border: none;
-  cursor: pointer;
   font-weight: 600;
+  cursor: pointer;
 }
 
 button:hover {
