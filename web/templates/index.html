@@ -1,66 +1,67 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>CatTrix Dashboard</title>
+  <title>CatTrix Control</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="overlay"></div>
+<div class="overlay"></div>
 
-  <div class="panel">
-    <h1>CatTrix</h1>
-    <div class="subtitle">Reaction Control System</div>
+<div class="panel">
+  <h1>CatTrix</h1>
+  <div class="subtitle">Reaction Control System</div>
 
-    <!-- AI -->
-    <section>
-      <h2>AI Personality</h2>
-      <select id="personality">
-        <option value="cattrix">CatTrix</option>
-        <option value="calm">Calm</option>
-        <option value="roast">Roast</option>
-      </select>
-      <button onclick="setPersonality()">Apply</button>
-    </section>
+  <!-- AI -->
+  <section>
+    <h2>AI Personality</h2>
+    <select id="personality">
+      <option value="cattrix">CatTrix</option>
+      <option value="calm">Calm</option>
+      <option value="roast">Roast</option>
+    </select>
+    <button onclick="setPersonality()">Apply</button>
+  </section>
 
-    <!-- Welcome -->
-    <section>
-      <h2>Welcome</h2>
-      <input id="welcome_channel" placeholder="Channel ID">
-      <input id="welcome_msg" placeholder="Message ({user})">
-      <input id="welcome_img" placeholder="Image (gif/jpg)">
-      <button onclick="saveWelcome()">Save</button>
-    </section>
+  <!-- Welcome -->
+  <section>
+    <h2>Welcome</h2>
+    <input id="welcome_channel" placeholder="Channel ID">
+    <input id="welcome_msg" placeholder="Message ({user})">
+    <input id="welcome_img" placeholder="Image (gif/jpg)">
+    <button onclick="saveWelcome()">Save</button>
+  </section>
 
-    <!-- Leave -->
-    <section>
-      <h2>Leave</h2>
-      <input id="leave_channel" placeholder="Channel ID">
-      <input id="leave_msg" placeholder="Message ({user})">
-      <input id="leave_img" placeholder="Image (gif/jpg)">
-      <button onclick="saveLeave()">Save</button>
-    </section>
+  <!-- Leave -->
+  <section>
+    <h2>Leave</h2>
+    <input id="leave_channel" placeholder="Channel ID">
+    <input id="leave_msg" placeholder="Message ({user})">
+    <input id="leave_img" placeholder="Image (gif/jpg)">
+    <button onclick="saveLeave()">Save</button>
+  </section>
 
-    <!-- Level -->
-    <section>
-      <h2>Level System</h2>
-      <input id="level_channel" placeholder="Channel ID">
-      <input id="level_xp" placeholder="XP per message">
-      <input id="level_msg" placeholder="Message ({user} {level})">
-      <input id="level_img" placeholder="Image (gif/jpg)">
-      <button onclick="saveLevel()">Save</button>
-    </section>
+  <!-- Level -->
+  <section>
+    <h2>Level System</h2>
+    <input id="level_channel" placeholder="Channel ID">
+    <input id="level_xp" placeholder="XP per message">
+    <input id="level_msg" placeholder="Message ({user} {level})">
+    <input id="level_img" placeholder="Image (gif/jpg)">
+    <button onclick="saveLevel()">Save</button>
+  </section>
 
-    <!-- YouTube -->
-    <section>
-      <h2>YouTube Monitor</h2>
-      <input id="yt_id" placeholder="Channel ID">
-      <label><input type="checkbox" id="yt_live"> Live</label>
-      <label><input type="checkbox" id="yt_video"> Videos</label>
-      <label><input type="checkbox" id="yt_shorts"> Shorts</label>
-      <button onclick="addYT()">Add Channel</button>
-    </section>
-  </div>
+  <!-- YouTube -->
+  <section>
+    <h2>YouTube Monitor</h2>
+    <input id="yt_id" placeholder="Channel ID">
+    <label><input type="checkbox" id="yt_live"> Live</label>
+    <label><input type="checkbox" id="yt_video"> Videos</label>
+    <label><input type="checkbox" id="yt_shorts"> Shorts</label>
+    <button onclick="addYT()">Add Channel</button>
+  </section>
 
-  <script src="/static/app.js"></script>
+</div>
+
+<script src="/static/app.js"></script>
 </body>
 </html>
