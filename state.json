@@ -6,12 +6,50 @@
 
   "personality": "cattrix",
 
-  "streams": {},
+  "servers": {
+    "GLOBAL": {
+      "moderation": {
+        "enabled": true,
+        "log_channel_id": null,
+        "allowed_roles": []
+      },
+      "warnings": {}
+    }
+  },
 
-  "servers": {},
+  "welcome": {
+    "enabled": true,
+    "channel_id": null,
+    "message": "Welcome {user} to **{server}** 🐱",
+    "image": "welcome.gif"
+  },
+
+  "leave": {
+    "enabled": true,
+    "channel_id": null,
+    "message": "{user} has left **{server}**.",
+    "image": "leave.gif"
+  },
+
+  "level": {
+    "enabled": true,
+    "channel_id": null,
+    "xp_per_message": 10,
+    "message": "🎉 {user} reached **Level {level}**!",
+    "image": "levelup.gif"
+  },
 
   "stats": {
+    "messages": {},
+    "levels": {},
     "ai_replies": 0,
     "moderation_actions": 0
-  }
-}
+  },
+
+  "yt_channels": {
+    "EXAMPLE_CHANNEL_ID": {
+      "live": {
+        "enabled": false,
+        "message": "🔴 **Live now!** {title}\n{url}"
+      },
+      "videos": {
