@@ -40,6 +40,32 @@ class Config:
 cfg = Config()
 
 # ======================
+# WELCOME & LEAVE
+# ======================
+async def handle_welcome_leave(member: discord.Member, join=True):
+    state = read_state()
+    cfg = state["welcome"] if join else state["leave"]
+    if not cfg["enabled"]:
+        return
+
+    channel = member.guild.get_channel(cfg["channel_id"])
+    if not channel:
+        return
+
+    msg = cfg["message"].format(
+        user=member.mention,
+        server=member.guild.name
+    )
+
+    image = cfg.get("image")
+    file = discord.File(f"{ASSETS_DIR}/{image}", filename=image) if image else None
+
+    await channel.send(
+        embed=cattrix_embed(msg, image=image),
+        file=file
+    )
+
+# ======================
 # STATE
 # ======================
 def read_state():
