@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import os, json, time, asyncio, threading, logging
-from typing import Dict, Optional
+import os, json, time, asyncio, logging
+from typing import Optional, Dict
 from dataclasses import dataclass, field
 
 import discord
@@ -9,60 +9,61 @@ from discord import app_commands
 from dotenv import load_dotenv
 import httpx
 
-from flask import Flask, redirect, request, session, jsonify, render_template_string
-from flask_cors import CORS
-
-from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
 
-# ======================
+# =====================================================
 # ENV + LOGGING
-# ======================
+# =====================================================
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("CatTrix")
 
-# ======================
+# =====================================================
 # CONFIG
-# ======================
+# =====================================================
 @dataclass
 class Config:
     discord_token: str = os.getenv("DISCORD_TOKEN")
-    owner_id: int = int(os.getenv("BOT_OWNER_ID"))
     poll_interval: float = float(os.getenv("POLL_INTERVAL", 2))
     ai_cooldown: int = int(os.getenv("AI_COOLDOWN", 15))
-    max_len: int = int(os.getenv("MAX_MESSAGE_LENGTH", 140))
+    max_message_length: int = int(os.getenv("MAX_MESSAGE_LENGTH", 140))
+    scopes: list = field(default_factory=lambda: os.getenv(
+        "YOUTUBE_SCOPES",
+        "https://www.googleapis.com/auth/youtube.force-ssl"
+    ).split(","))
 
-# ======================
-# AI PERSONALITIES
-# ======================
+# =====================================================
+# AI PRESETS
+# =====================================================
 AI_PERSONALITIES = {
     "cattrix": {
-        "system": "You are CatTrix. Playful, clever, teasing but friendly.",
-        "temp": 0.85,
+        "system": "You are CatTrix — playful, witty, chaotic but kind. Short Hinglish replies.",
+        "temp": 0.8,
         "tokens": 80
     },
-    "chill": {
+    "calm": {
         "system": "You are calm, friendly, supportive.",
         "temp": 0.6,
         "tokens": 100
     },
-    "mod": {
-        "system": "You are a strict but polite moderator.",
-        "temp": 0.4,
+    "roast": {
+        "system": "You roast lightly, never insult.",
+        "temp": 0.9,
         "tokens": 60
     }
 }
 
-# ======================
-# AI SERVICE
-# ======================
+# =====================================================
+# AI SERVICE (LOW LATENCY)
+# =====================================================
 class AIService:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.last_used = 0
-        self.personality = "cattrix"
+        self.active_personality = "cattrix"
         self.client = httpx.AsyncClient(timeout=20)
         self.key = os.getenv("OPENROUTER_API_KEY")
         self.model = os.getenv("OPENROUTER_MODEL")
@@ -71,21 +72,27 @@ class AIService:
         if time.time() - self.last_used < self.cfg.ai_cooldown:
             return None
 
-        p = AI_PERSONALITIES[self.personality]
+        preset = AI_PERSONALITIES[self.active_personality]
+
         payload = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": p["system"]},
+                {"role": "system", "content": preset["system"]},
                 {"role": "user", "content": f"{author}: {message}"}
             ],
-            "temperature": p["temp"],
-            "max_tokens": p["tokens"]
+            "temperature": preset["temp"],
+            "max_tokens": preset["tokens"]
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json"
         }
 
         r = await self.client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             json=payload,
-            headers={"Authorization": f"Bearer {self.key}"}
+            headers=headers
         )
 
         if r.status_code != 200:
@@ -93,177 +100,97 @@ class AIService:
 
         self.last_used = time.time()
         text = r.json()["choices"][0]["message"]["content"]
-        return text[:self.cfg.max_len]
+        return text[:self.cfg.max_message_length]
 
-# ======================
-# YOUTUBE OAUTH MANAGER
-# ======================
+# =====================================================
+# YOUTUBE OAUTH SERVICE
+# =====================================================
 class YouTubeOAuth:
-    def __init__(self):
-        self.tokens: Dict[str, Credentials] = {}
-
-    def flow(self):
-        return Flow.from_client_config(
-            {
-                "web": {
-                    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
-                    "redirect_uris": [os.getenv("GOOGLE_REDIRECT_URI")],
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                }
-            },
-            scopes=["https://www.googleapis.com/auth/youtube.force-ssl"]
-        )
-
-    def service(self, user_id: str):
-        return build("youtube", "v3", credentials=self.tokens[user_id])
-
-# ======================
-# STREAM MANAGER (MULTI)
-# ======================
-class StreamManager:
-    def __init__(self, ai: AIService, yt_oauth: YouTubeOAuth, cfg: Config):
-        self.ai = ai
-        self.oauth = yt_oauth
+    def __init__(self, cfg: Config):
         self.cfg = cfg
-        self.streams = {}
+        self.creds: Optional[Credentials] = None
+        self.youtube = None
 
-    def start(self, user_id: str, video_id: str):
-        yt = self.oauth.service(user_id)
-        chat_id = yt.videos().list(
-            part="liveStreamingDetails", id=video_id
-        ).execute()["items"][0]["liveStreamingDetails"]["activeLiveChatId"]
+    def login(self):
+        token_file = "token.json"
 
-        self.streams[video_id] = {"yt": yt, "chat": chat_id, "page": None}
-        asyncio.create_task(self.loop(video_id))
-
-    async def loop(self, vid):
-        s = self.streams[vid]
-        while vid in self.streams:
-            data = await asyncio.to_thread(
-                s["yt"].liveChatMessages().list(
-                    liveChatId=s["chat"],
-                    part="snippet",
-                    pageToken=s["page"]
-                ).execute
+        if os.path.exists(token_file):
+            self.creds = Credentials.from_authorized_user_file(
+                token_file, self.cfg.scopes
             )
-            s["page"] = data.get("nextPageToken")
-            for i in data.get("items", []):
-                msg = i["snippet"]["displayMessage"]
-                author = i["snippet"]["authorDisplayName"]
-                reply = await self.ai.reply(msg, author)
-                if reply:
-                    await asyncio.to_thread(
-                        s["yt"].liveChatMessages().insert(
-                            part="snippet",
-                            body={"snippet":{
-                                "liveChatId": s["chat"],
-                                "type":"textMessageEvent",
-                                "textMessageDetails":{"messageText":reply}
-                            }}
-                        ).execute
-                    )
-            await asyncio.sleep(self.cfg.poll_interval)
 
-# ======================
-# DISCORD MODERATION
-# ======================
+        if not self.creds or not self.creds.valid:
+            if self.creds and self.creds.expired and self.creds.refresh_token:
+                self.creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    os.getenv("GOOGLE_CLIENT_SECRET_FILE"),
+                    self.cfg.scopes
+                )
+                self.creds = flow.run_local_server(port=0)
+
+            with open(token_file, "w") as f:
+                f.write(self.creds.to_json())
+
+        self.youtube = build("youtube", "v3", credentials=self.creds)
+        logger.info("YouTube account authenticated")
+
+# =====================================================
+# MODERATION COMMANDS (SLASH)
+# =====================================================
 class Moderation(commands.Cog):
     def __init__(self, bot): self.bot = bot
 
     @app_commands.command(name="ban")
-    async def ban(self, i: discord.Interaction, user: discord.Member, reason: str = None):
-        await user.ban(reason=reason)
-        await i.response.send_message("✅ User banned", ephemeral=True)
+    @app_commands.checks.has_permissions(ban_members=True)
+    async def ban(self, interaction, member: discord.Member, reason: str = None):
+        await member.ban(reason=reason)
+        await interaction.response.send_message(f"🔨 Banned {member}")
 
     @app_commands.command(name="kick")
-    async def kick(self, i: discord.Interaction, user: discord.Member, reason: str = None):
-        await user.kick(reason=reason)
-        await i.response.send_message("✅ User kicked", ephemeral=True)
+    @app_commands.checks.has_permissions(kick_members=True)
+    async def kick(self, interaction, member: discord.Member, reason: str = None):
+        await member.kick(reason=reason)
+        await interaction.response.send_message(f"👢 Kicked {member}")
+
+    @app_commands.command(name="timeout")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def timeout(self, interaction, member: discord.Member, minutes: int):
+        await member.timeout(discord.utils.utcnow() + discord.timedelta(minutes=minutes))
+        await interaction.response.send_message(f"⏳ Timed out {member}")
 
     @app_commands.command(name="purge")
-    async def purge(self, i: discord.Interaction, amount: int):
-        await i.channel.purge(limit=amount)
-        await i.response.send_message("🧹 Messages deleted", ephemeral=True)
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def purge(self, interaction, amount: int):
+        await interaction.channel.purge(limit=amount)
+        await interaction.response.send_message("🧹 Messages deleted", ephemeral=True)
 
-# ======================
-# FLASK WEBSITE
-# ======================
-def start_web(bot):
-    app = Flask(__name__)
-    app.secret_key = os.getenv("WEB_SECRET_KEY")
-    CORS(app)
-    oauth = bot.yt_oauth
-
-    HTML = """
-    <h1>CatTrix Dashboard</h1>
-    <a href="/login">Login YouTube</a>
-    <form method="post" action="/personality">
-      <select name="name"><option>cattrix</option><option>chill</option><option>mod</option></select>
-      <button>Set Personality</button>
-    </form>
-    """
-
-    @app.route("/")
-    def home(): return render_template_string(HTML)
-
-    @app.route("/login")
-    def login():
-        flow = oauth.flow()
-        flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-        auth_url, state = flow.authorization_url(
-            access_type="offline",
-            include_granted_scopes="true"
-        )
-        session["state"] = state
-        return redirect(auth_url)
-
-    @app.route("/oauth/callback")
-    def callback():
-        flow = oauth.flow()
-        flow.fetch_token(authorization_response=request.url)
-        creds = flow.credentials
-        oauth.tokens["default"] = creds
-        return redirect("/")
-
-    @app.route("/personality", methods=["POST"])
-    def personality():
-        bot.ai.personality = request.form["name"]
-        return redirect("/")
-
-    app.run(
-        host=os.getenv("WEB_HOST","0.0.0.0"),
-        port=int(os.getenv("WEB_PORT",5000)),
-        use_reloader=False
-    )
-
-# ======================
-# DISCORD BOT
-# ======================
+# =====================================================
+# BOT
+# =====================================================
 class CatTrixBot(commands.Bot):
     def __init__(self):
-        intents = discord.Intents.all()
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.members = True
         super().__init__(command_prefix="!", intents=intents)
 
         self.cfg = Config()
         self.ai = AIService(self.cfg)
-        self.yt_oauth = YouTubeOAuth()
-        self.streams = StreamManager(self.ai, self.yt_oauth, self.cfg)
+        self.yt = YouTubeOAuth(self.cfg)
 
     async def setup_hook(self):
         await self.add_cog(Moderation(self))
         await self.tree.sync()
 
     async def on_ready(self):
-        logger.info("CatTrix online as %s", self.user)
+        logger.info("🐱 CatTrix online as %s", self.user)
 
-# ======================
+# =====================================================
 # MAIN
-# ======================
+# =====================================================
 async def main():
     bot = CatTrixBot()
-    threading.Thread(target=start_web, args=(bot,), daemon=True).start()
     await bot.start(bot.cfg.discord_token)
 
 if __name__ == "__main__":
