@@ -1,1 +1,17 @@
+{
+  "bot": {
+    "online": false,
+    "last_start": null
+  },
 
+  "personality": "cattrix",
+
+  "streams": {},
+
+  "servers": {},
+
+  "stats": {
+    "ai_replies": 0,
+    "moderation_actions": 0
+  }
+}
