@@ -1,9 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>CatTrix Control</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <title>CatTrix Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="overlay"></div>
@@ -11,12 +10,6 @@
   <div class="panel">
     <h1>CatTrix</h1>
     <div class="subtitle">Reaction Control System</div>
-
-    <!-- STATUS -->
-    <div class="status">
-      <span class="dot online"></span>
-      Bot Online
-    </div>
 
     <!-- AI -->
     <section>
@@ -26,44 +19,44 @@
         <option value="calm">Calm</option>
         <option value="roast">Roast</option>
       </select>
-      <button onclick="setPersonality()">Apply Personality</button>
+      <button onclick="setPersonality()">Apply</button>
     </section>
 
-    <!-- WELCOME -->
+    <!-- Welcome -->
     <section>
-      <h2>Welcome System</h2>
-      <input id="welcome_channel" placeholder="Channel ID" />
-      <input id="welcome_msg" placeholder="Welcome message ({user})" />
-      <input id="welcome_img" placeholder="Image file (gif/jpg)" />
-      <button onclick="saveWelcome()">Save Welcome</button>
+      <h2>Welcome</h2>
+      <input id="welcome_channel" placeholder="Channel ID">
+      <input id="welcome_msg" placeholder="Message ({user})">
+      <input id="welcome_img" placeholder="Image (gif/jpg)">
+      <button onclick="saveWelcome()">Save</button>
     </section>
 
-    <!-- LEAVE -->
+    <!-- Leave -->
     <section>
-      <h2>Leave System</h2>
-      <input id="leave_channel" placeholder="Channel ID" />
-      <input id="leave_msg" placeholder="Leave message ({user})" />
-      <input id="leave_img" placeholder="Image file (gif/jpg)" />
-      <button onclick="saveLeave()">Save Leave</button>
+      <h2>Leave</h2>
+      <input id="leave_channel" placeholder="Channel ID">
+      <input id="leave_msg" placeholder="Message ({user})">
+      <input id="leave_img" placeholder="Image (gif/jpg)">
+      <button onclick="saveLeave()">Save</button>
     </section>
 
-    <!-- LEVEL -->
+    <!-- Level -->
     <section>
       <h2>Level System</h2>
-      <input id="level_channel" placeholder="Channel ID" />
-      <input id="level_xp" placeholder="XP per message" />
-      <input id="level_msg" placeholder="Level message ({user} {level})" />
-      <input id="level_img" placeholder="Image file (gif/jpg)" />
-      <button onclick="saveLevel()">Save Level</button>
+      <input id="level_channel" placeholder="Channel ID">
+      <input id="level_xp" placeholder="XP per message">
+      <input id="level_msg" placeholder="Message ({user} {level})">
+      <input id="level_img" placeholder="Image (gif/jpg)">
+      <button onclick="saveLevel()">Save</button>
     </section>
 
-    <!-- YOUTUBE -->
+    <!-- YouTube -->
     <section>
-      <h2>YouTube Monitoring</h2>
-      <input id="yt_id" placeholder="Channel ID" />
-      <label><input type="checkbox" id="yt_live" /> Live</label>
-      <label><input type="checkbox" id="yt_video" /> Videos</label>
-      <label><input type="checkbox" id="yt_shorts" /> Shorts</label>
+      <h2>YouTube Monitor</h2>
+      <input id="yt_id" placeholder="Channel ID">
+      <label><input type="checkbox" id="yt_live"> Live</label>
+      <label><input type="checkbox" id="yt_video"> Videos</label>
+      <label><input type="checkbox" id="yt_shorts"> Shorts</label>
       <button onclick="addYT()">Add Channel</button>
     </section>
   </div>
