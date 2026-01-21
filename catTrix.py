@@ -103,39 +103,153 @@ def embed(msg, color=discord.Color.red()):
     return discord.Embed(description=msg, color=color)
 
 # ======================
-# MODERATION CMDS
+# FULL MODERATION COG
 # ======================
 class Moderation(commands.Cog):
-    def __init__(self, bot): self.bot = bot
+    def __init__(self, bot):
+        self.bot = bot
+
+    # ---------- HELPERS ----------
+    def _embed(self, text, color=discord.Color.red()):
+        return discord.Embed(description=text, color=color)
+
+    def _load_state(self):
+        with open("state.json") as f:
+            return json.load(f)
+
+    def _save_state(self, data):
+        with open("state.json", "w") as f:
+            json.dump(data, f, indent=2)
+
+    def _add_warning(self, guild_id, user_id, reason):
+        data = self._load_state()
+        g = data.setdefault("servers", {}).setdefault(str(guild_id), {})
+        warns = g.setdefault("warnings", {}).setdefault(str(user_id), [])
+        warns.append({
+            "reason": reason,
+            "time": int(time.time())
+        })
+        self._save_state(data)
+        return len(warns)
+
+    def _get_warnings(self, guild_id, user_id):
+        data = self._load_state()
+        return data.get("servers", {}).get(str(guild_id), {}) \
+                   .get("warnings", {}).get(str(user_id), [])
+
+    def _clear_warnings(self, guild_id, user_id):
+        data = self._load_state()
+        try:
+            del data["servers"][str(guild_id)]["warnings"][str(user_id)]
+            self._save_state(data)
+            return True
+        except KeyError:
+            return False
+
+    # ---------- COMMANDS ----------
 
     @app_commands.command(name="ban")
-    async def ban(self, i: discord.Interaction, m: discord.Member, reason: str = None):
-        await m.ban(reason=reason)
-        await i.response.send_message(embed=embed(f"🔨 Banned {m}"))
+    @app_commands.checks.has_permissions(ban_members=True)
+    async def ban(self, i: discord.Interaction, member: discord.Member, reason: str = "No reason"):
+        await member.ban(reason=reason)
+        await i.response.send_message(
+            embed=self._embed(f"🔨 **Banned** {member.mention}\nReason: {reason}")
+        )
+
+    @app_commands.command(name="unban")
+    @app_commands.checks.has_permissions(ban_members=True)
+    async def unban(self, i: discord.Interaction, user: discord.User):
+        await i.guild.unban(user)
+        await i.response.send_message(
+            embed=self._embed(f"✅ **Unbanned** {user.mention}", discord.Color.green())
+        )
 
     @app_commands.command(name="kick")
-    async def kick(self, i, m: discord.Member, reason: str = None):
-        await m.kick(reason=reason)
-        await i.response.send_message(embed=embed(f"👢 Kicked {m}"))
+    @app_commands.checks.has_permissions(kick_members=True)
+    async def kick(self, i, member: discord.Member, reason: str = "No reason"):
+        await member.kick(reason=reason)
+        await i.response.send_message(
+            embed=self._embed(f"👢 **Kicked** {member.mention}\nReason: {reason}")
+        )
 
     @app_commands.command(name="timeout")
-    async def timeout(self, i, m: discord.Member, minutes: int):
-        await m.timeout(discord.utils.utcnow() + discord.timedelta(minutes=minutes))
-        await i.response.send_message(embed=embed(f"⏳ Timed out {m}"))
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def timeout(self, i, member: discord.Member, minutes: int, reason: str = "No reason"):
+        until = discord.utils.utcnow() + discord.timedelta(minutes=minutes)
+        await member.timeout(until, reason=reason)
+        await i.response.send_message(
+            embed=self._embed(f"⏳ **Timed out** {member.mention} for {minutes}m\nReason: {reason}")
+        )
 
-    @app_commands.command(name="purge")
-    async def purge(self, i, amount: int):
-        await i.channel.purge(limit=amount)
-        await i.response.send_message(embed=embed("🧹 Messages deleted"), ephemeral=True)
+    @app_commands.command(name="untimeout")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def untimeout(self, i, member: discord.Member):
+        await member.timeout(None)
+        await i.response.send_message(
+            embed=self._embed(f"✅ **Timeout removed** for {member.mention}", discord.Color.green())
+        )
 
-# ======================
-# TTS
-# ======================
-async def tts_play(vc: discord.VoiceClient, text: str):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
-        gTTS(text).save(f.name)
-        vc.play(discord.FFmpegPCMAudio(f.name))
+    @app_commands.command(name="warn")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def warn(self, i, member: discord.Member, reason: str):
+        count = self._add_warning(i.guild.id, member.id, reason)
+        await i.response.send_message(
+            embed=self._embed(f"⚠️ **Warned** {member.mention}\nReason: {reason}\nTotal warnings: {count}")
+        )
 
+    @app_commands.command(name="warnings")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def warnings(self, i, member: discord.Member):
+        warns = self._get_warnings(i.guild.id, member.id)
+        if not warns:
+            await i.response.send_message(
+                embed=self._embed(f"✅ {member.mention} has no warnings", discord.Color.green())
+            )
+            return
+
+        text = "\n".join(
+            f"{idx+1}. {w['reason']}" for idx, w in enumerate(warns)
+        )
+        await i.response.send_message(
+            embed=self._embed(f"⚠️ **Warnings for {member.mention}**\n{text}")
+        )
+
+    @app_commands.command(name="clearwarns")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def clearwarns(self, i, member: discord.Member):
+        ok = self._clear_warnings(i.guild.id, member.id)
+        msg = "🧹 **Warnings cleared**" if ok else "ℹ️ No warnings to clear"
+        await i.response.send_message(embed=self._embed(msg))
+
+    @app_commands.command(name="lock")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def lock(self, i):
+        await i.channel.set_permissions(i.guild.default_role, send_messages=False)
+        await i.response.send_message(embed=self._embed("🔒 **Channel locked**"))
+
+    @app_commands.command(name="unlock")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def unlock(self, i):
+        await i.channel.set_permissions(i.guild.default_role, send_messages=True)
+        await i.response.send_message(embed=self._embed("🔓 **Channel unlocked**"))
+
+    @app_commands.command(name="slowmode")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def slowmode(self, i, seconds: int):
+        await i.channel.edit(slowmode_delay=seconds)
+        await i.response.send_message(
+            embed=self._embed(f"🐢 **Slowmode set to {seconds}s**")
+        )
+
+    @app_commands.command(name="nick")
+    @app_commands.checks.has_permissions(manage_nicknames=True)
+    async def nick(self, i, member: discord.Member, nickname: str):
+        await member.edit(nick=nickname)
+        await i.response.send_message(
+            embed=self._embed(f"✏️ **Nickname updated** for {member.mention}")
+        )
+
+    
 # ======================
 # EVENTS
 # ======================
