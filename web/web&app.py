@@ -5,13 +5,13 @@ STATE_FILE = "state.json"
 
 app = Flask(__name__)
 
-def read_state():
+def load_state():
     if not os.path.exists(STATE_FILE):
-        return {"streams": {}, "personality": "cattrix"}
-    with open(STATE_FILE) as f:
+        return {}
+    with open(STATE_FILE, "r") as f:
         return json.load(f)
 
-def write_state(data):
+def save_state(data):
     with open(STATE_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
@@ -20,20 +20,22 @@ def index():
     return render_template("index.html")
 
 @app.route("/api/state")
-def state():
-    return jsonify(read_state())
+def get_state():
+    return jsonify(load_state())
 
-@app.route("/api/personality", methods=["POST"])
-def personality():
-    data = read_state()
-    data["personality"] = request.json["value"]
-    write_state(data)
+@app.route("/api/update", methods=["POST"])
+def update_state():
+    data = load_state()
+    payload = request.json
+    data.update(payload)
+    save_state(data)
     return {"ok": True}
 
-@app.route("/api/stream", methods=["POST"])
-def add_stream():
-    data = read_state()
-    vid = request.json["video_id"]
-    data["streams"][vid] = {"enabled": True}
-    write_state(data)
+@app.route("/api/set_section", methods=["POST"])
+def set_section():
+    data = load_state()
+    section = request.json["section"]
+    value = request.json["value"]
+    data[section] = value
+    save_state(data)
     return {"ok": True}
